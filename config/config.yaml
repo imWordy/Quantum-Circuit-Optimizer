@@ -1,0 +1,31 @@
+# Configuration for Quantum Circuit Optimizer
+
+seed: 42
+
+circuit:
+  min_qubits: 2
+  max_qubits: 5
+  min_gates: 5
+  max_gates: 30
+  allowed_gates:
+    - I
+    - X
+    - Y
+    - Z
+    - H
+    - RX
+    - RY
+    - RZ
+    - CX
+
+verification:
+  tolerance: 1e-7
+  comparison_method: "unitary"
+
+optimization:
+  max_iterations: 50
+
+data:
+  train_ratio: 0.70
+  validation_ratio: 0.15
+  test_ratio: 0.15

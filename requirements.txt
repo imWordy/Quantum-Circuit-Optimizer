@@ -1,0 +1,14 @@
+# Dependencies for GNN-Guided Quantum Circuit Optimization
+qiskit>=1.0.0
+qiskit-aer>=0.14.0
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+pyyaml>=6.0
+pytest>=7.4.0
+
+# PyTorch and PyTorch Geometric
+torch>=2.2.0
+torch-geometric>=2.5.0
