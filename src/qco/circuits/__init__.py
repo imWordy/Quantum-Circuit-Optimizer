@@ -1,5 +1,6 @@
 """Circuits subpackage exports."""
 
+from qco.circuits.generator import CircuitGenerator
 from qco.circuits.representation import (
     SUPPORTED_GATES,
     CircuitData,
@@ -16,8 +17,10 @@ __all__ = [
     "SUPPORTED_GATES",
     "CircuitData",
     "GateOperation",
+    "CircuitGenerator",
     "serialize_to_json",
     "deserialize_from_json",
     "save_circuit",
     "load_circuit",
 ]
+
