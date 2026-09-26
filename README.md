@@ -62,7 +62,7 @@ pytest -v tests/
 | **Phase 2** | **Canonical Quantum Circuit Representation** | ✅ Complete | `GateOperation`, `CircuitData`, SHA-256 circuit IDs, Qiskit bidirectional conversion, JSON serialization, `test_circuits.py` |
 | **Phase 3** | **Small Circuit Generator** | ✅ Complete | `CircuitGenerator`, parameterized angle sampling, diverse batch generation, distribution logging, `test_generator.py` |
 | **Phase 4** | **Circuit Cost Metrics** | ✅ Complete | `CircuitCost`, critical path DAG-based `calculate_depth()`, `compute_cost_reduction()`, `test_metrics.py` |
-| **Phase 5** | Exact Quantum Equivalence Verification | ⏳ Planned | Unitary comparison & statevector simulation with global phase handling |
+| **Phase 5** | **Exact Quantum Equivalence Verification** | ✅ Complete | Independent correctness authority: `compute_unitary()`, `check_equivalence()`, global phase handling, `test_verification.py` |
 | **Phase 6** | Valid Transformation Library | ⏳ Planned | Deterministic quantum algebraic identity rewrite rules |
 | **Phase 7** | Procedural Candidate Generator | ⏳ Planned | Transformation application & metadata tracking |
 | **Phase 8** | Candidate Verification & Ground-Truth Dataset | ⏳ Planned | Verified dataset generation pipeline |
@@ -110,4 +110,17 @@ print(f"Total gates: {cost.total_gates}, CNOTs: {cost.cnot_count}, Depth: {cost.
 # Evaluate reduction against a candidate circuit
 reduction = compute_cost_reduction(original=circuit, candidate=recovered)
 print(f"Gate reduction: {reduction.gate_reduction} ({reduction.gate_reduction_pct:.1f}%)")
+```
+
+### 3. Exact Quantum Equivalence Verification
+```python
+from qco.circuits import CircuitData, GateOperation
+from qco.verification import check_equivalence
+
+# Define two circuits: H-Z-H vs X
+c1 = CircuitData(num_qubits=1, gates=[GateOperation("H", (0,)), GateOperation("Z", (0,)), GateOperation("H", (0,))])
+c2 = CircuitData(num_qubits=1, gates=[GateOperation("X", (0,))])
+
+result = check_equivalence(c1, c2)
+print(f"Equivalent: {result.equivalent}, Matrix Distance: {result.matrix_distance:.2e}")
 ```
