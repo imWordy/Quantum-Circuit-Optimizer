@@ -10,7 +10,7 @@ Research prototype combining procedural candidate generation, exact quantum equi
 ├── src/
 │   └── qco/                    # Core Python package
 │       ├── circuits/           # Canonical circuit models, serialization, and procedural generator
-│       ├── transformations/    # Rule definitions and candidate transformations
+│       ├── transformations/    # Valid rewrite rule library and transformation validator
 │       ├── verification/       # Independent quantum simulation & equivalence checks
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
 │       ├── graphs/             # Circuit-to-graph translation
@@ -63,7 +63,7 @@ pytest -v tests/
 | **Phase 3** | **Small Circuit Generator** | ✅ Complete | `CircuitGenerator`, parameterized angle sampling, diverse batch generation, distribution logging, `test_generator.py` |
 | **Phase 4** | **Circuit Cost Metrics** | ✅ Complete | `CircuitCost`, critical path DAG-based `calculate_depth()`, `compute_cost_reduction()`, `test_metrics.py` |
 | **Phase 5** | **Exact Quantum Equivalence Verification** | ✅ Complete | Independent correctness authority: `compute_unitary()`, `check_equivalence()`, global phase handling, `test_verification.py` |
-| **Phase 6** | Valid Transformation Library | ⏳ Planned | Deterministic quantum algebraic identity rewrite rules |
+| **Phase 6** | **Valid Transformation Library** | ✅ Complete | `SelfInverseCancellation`, `CNOTCancellation`, `RotationCombination`, `ZeroRotationRemoval`, `IdentityRemoval`, `RuleValidator`, `test_transformations.py` |
 | **Phase 7** | Procedural Candidate Generator | ⏳ Planned | Transformation application & metadata tracking |
 | **Phase 8** | Candidate Verification & Ground-Truth Dataset | ⏳ Planned | Verified dataset generation pipeline |
 | **Phase 9** | Dataset Splitting & Leakage Prevention | ⏳ Planned | Grouped split by parent circuit ID |
@@ -123,4 +123,21 @@ c2 = CircuitData(num_qubits=1, gates=[GateOperation("X", (0,))])
 
 result = check_equivalence(c1, c2)
 print(f"Equivalent: {result.equivalent}, Matrix Distance: {result.matrix_distance:.2e}")
+```
+
+### 4. Applying Transformation Rules with Verification
+```python
+from qco.circuits import CircuitData, GateOperation
+from qco.transformations import SelfInverseCancellation, RuleValidator
+
+# Circuit containing self-inverse gates: H H
+circuit = CircuitData(num_qubits=1, gates=[GateOperation("H", (0,)), GateOperation("H", (0,))])
+rule = SelfInverseCancellation()
+validator = RuleValidator()
+
+# Find matches and validate
+matches = rule.find_matches(circuit)
+for match in matches:
+    val_result = validator.validate_transformation(rule, circuit, match)
+    print(f"Rule: {val_result.rule_name}, Valid: {val_result.valid}, Gate reduction: {val_result.actual_gate_reduction}")
 ```
