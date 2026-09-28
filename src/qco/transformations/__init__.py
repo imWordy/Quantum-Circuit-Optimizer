@@ -1,5 +1,9 @@
 """Transformations subpackage exports."""
 
+from qco.transformations.candidate_generator import (
+    CandidateCircuit,
+    CandidateGenerator,
+)
 from qco.transformations.rules import (
     CNOTCancellation,
     IdentityRemoval,
@@ -28,4 +32,6 @@ __all__ = [
     "normalize_angle",
     "RuleValidator",
     "RuleValidationResult",
+    "CandidateCircuit",
+    "CandidateGenerator",
 ]

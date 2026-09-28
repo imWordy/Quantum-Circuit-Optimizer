@@ -10,11 +10,11 @@ Research prototype combining procedural candidate generation, exact quantum equi
 ├── src/
 │   └── qco/                    # Core Python package
 │       ├── circuits/           # Canonical circuit models, serialization, and procedural generator
-│       ├── transformations/    # Valid rewrite rule library and transformation validator
+│       ├── transformations/    # Rewrite rules, candidate generator, and transformation validator
 │       ├── verification/       # Independent quantum simulation & equivalence checks
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
 │       ├── graphs/             # Circuit-to-graph translation
-│       ├── data/               # Schemas and dataset builders
+│       ├── data/               # Schemas and ground-truth dataset builders
 │       ├── models/             # GNN and baseline models
 │       ├── optimization/       # Search and optimization algorithms
 │       ├── experiments/        # Experiment execution harnesses
@@ -64,8 +64,8 @@ pytest -v tests/
 | **Phase 4** | **Circuit Cost Metrics** | ✅ Complete | `CircuitCost`, critical path DAG-based `calculate_depth()`, `compute_cost_reduction()`, `test_metrics.py` |
 | **Phase 5** | **Exact Quantum Equivalence Verification** | ✅ Complete | Independent correctness authority: `compute_unitary()`, `check_equivalence()`, global phase handling, `test_verification.py` |
 | **Phase 6** | **Valid Transformation Library** | ✅ Complete | `SelfInverseCancellation`, `CNOTCancellation`, `RotationCombination`, `ZeroRotationRemoval`, `IdentityRemoval`, `RuleValidator`, `test_transformations.py` |
-| **Phase 7** | Procedural Candidate Generator | ⏳ Planned | Transformation application & metadata tracking |
-| **Phase 8** | Candidate Verification & Ground-Truth Dataset | ⏳ Planned | Verified dataset generation pipeline |
+| **Phase 7** | **Procedural Candidate Generator** | ✅ Complete | `CandidateCircuit`, `CandidateGenerator`, side-effect free candidate proposal, full metadata traceability, `test_candidate_generator.py` |
+| **Phase 8** | **Candidate Verification & Ground-Truth Dataset** | ✅ Complete | `CandidateObservation`, `DatasetBuilder`, non-ML ground-truth pipeline, CSV/Parquet export, ground-truth audit verification, `test_dataset.py` |
 | **Phase 9** | Dataset Splitting & Leakage Prevention | ⏳ Planned | Grouped split by parent circuit ID |
 | **Phase 10** | Circuit Graph Representation | ⏳ Planned | Structural PyG graph encoding preserving gate dependencies |
 | **Phase 11** | Non-GNN Baselines | ⏳ Planned | Random search and greedy optimization baselines |
@@ -140,4 +140,18 @@ matches = rule.find_matches(circuit)
 for match in matches:
     val_result = validator.validate_transformation(rule, circuit, match)
     print(f"Rule: {val_result.rule_name}, Valid: {val_result.valid}, Gate reduction: {val_result.actual_gate_reduction}")
+```
+
+### 5. Generating Candidates & Building Ground-Truth Datasets
+```python
+from qco.circuits import CircuitGenerator
+from qco.data import DatasetBuilder
+
+generator = CircuitGenerator.from_config()
+circuits = generator.generate_batch(5)
+
+builder = DatasetBuilder()
+# Process circuits through candidate generation, exact verification, and cost measurement
+df = builder.build_dataset(circuits, output_dir="data/raw")
+print(f"Generated {len(df)} verified ground-truth candidate observation records.")
 ```
