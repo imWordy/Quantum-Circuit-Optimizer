@@ -1,22 +1,31 @@
-"""Ground-truth Dataset Builder for QCO.
+"""Ground-Truth Dataset Builder for QCO — Phase 8.
 
-Executes the non-ML ground truth pipeline:
-Circuit -> Generate Candidates -> Verify Equivalence -> Compute Costs & Reductions -> Store Observations
+Implements the full non-ML pipeline:
+  Initial circuit
+    -> Generate candidates (Phase 7)
+    -> Verify candidates (Phase 5)
+    -> Calculate costs (Phase 4)
+    -> Calculate actual improvements
+    -> Store observation
+
+Ground-truth principle: training targets come ONLY from actual verified outcomes.
+GNN predictions must never be used as labels.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import pandas as pd
 
 from qco.circuits.representation import CircuitData
-from qco.circuits.serialization import load_circuit, save_circuit
-from qco.data.schemas import CandidateObservation
-from qco.metrics.circuit_cost import compute_circuit_cost, compute_cost_reduction
-from qco.transformations.candidate_generator import CandidateCircuit, CandidateGenerator
+from qco.circuits.serialization import save_circuit
+from qco.data.schemas import ObservationRecord
+from qco.metrics.circuit_cost import compute_circuit_cost
+from qco.transformations.candidate_generator import Candidate, CandidateGenerator
+from qco.transformations.rules import get_default_rules, TransformationRule
 from qco.utils.logging import setup_logger
 from qco.verification.equivalence import check_equivalence
 
@@ -24,105 +33,187 @@ logger = setup_logger("qco.data.dataset_builder")
 
 
 class DatasetBuilder:
-    """Builds ground truth candidate observation datasets from raw quantum circuits."""
+    """Builds a verified ground-truth dataset from a collection of circuits.
+
+    Pipeline per circuit:
+    1. Generate candidates via CandidateGenerator (Phase 7)
+    2. Independently verify each candidate via check_equivalence (Phase 5)
+    3. Compute cost metrics on parent and candidate (Phase 4)
+    4. Compute actual improvements
+    5. Store observation record
+    """
 
     def __init__(
         self,
-        candidate_generator: Optional[CandidateGenerator] = None,
-        tolerance: float = 1e-7,
+        rules: Optional[Sequence[TransformationRule]] = None,
+        equivalence_tolerance: float = 1e-7,
     ) -> None:
-        self.candidate_generator = candidate_generator or CandidateGenerator()
-        self.tolerance = tolerance
+        self.generator = CandidateGenerator(
+            rules=list(rules) if rules is not None else get_default_rules()
+        )
+        self.equivalence_tolerance = equivalence_tolerance
+        self._records: List[ObservationRecord] = []
+        self._circuit_store: Dict[str, CircuitData] = {}  # id -> CircuitData reference
 
-    def process_circuit(
-        self, circuit: CircuitData
-    ) -> Tuple[List[CandidateObservation], List[CandidateCircuit]]:
-        """Generate, verify, and measure all candidates for a single circuit.
+    @property
+    def records(self) -> List[ObservationRecord]:
+        """Return all stored observation records."""
+        return list(self._records)
+
+    @property
+    def circuit_store(self) -> Dict[str, CircuitData]:
+        """Return mapping of circuit_id -> CircuitData for reconstruction."""
+        return dict(self._circuit_store)
+
+    def process_circuit(self, circuit: CircuitData) -> List[ObservationRecord]:
+        """Run the full pipeline for one circuit and accumulate records.
 
         Args:
-            circuit: The source circuit.
+            circuit: Parent CircuitData to process.
 
         Returns:
-            Tuple of (observations, candidates).
+            List of ObservationRecord for candidates generated from this circuit.
         """
-        candidates = self.candidate_generator.generate_candidates(circuit)
+        # Store parent circuit reference
+        if circuit.circuit_id not in self._circuit_store:
+            self._circuit_store[circuit.circuit_id] = circuit
+
         parent_cost = compute_circuit_cost(circuit)
-        observations: List[CandidateObservation] = []
+        candidates = self.generator.generate_candidates(circuit)
 
-        for cand in candidates:
-            # Independent equivalence check (Phase 5)
-            eq_res = check_equivalence(circuit, cand.circuit, tolerance=self.tolerance)
-
-            # Cost and reduction measurement (Phase 4)
-            cand_cost = compute_circuit_cost(cand.circuit)
-            reduction = compute_cost_reduction(parent_cost, cand_cost)
-
-            obs = CandidateObservation(
-                parent_circuit_id=circuit.circuit_id,
-                candidate_id=cand.candidate_id,
-                transformation_type=cand.transformation_name,
-                transformation_location=cand.transformation_location,
-                parent_gate_count=parent_cost.total_gates,
-                candidate_gate_count=cand_cost.total_gates,
-                parent_cnot_count=parent_cost.cnot_count,
-                candidate_cnot_count=cand_cost.cnot_count,
-                parent_depth=parent_cost.depth,
-                candidate_depth=cand_cost.depth,
-                gate_reduction=reduction.gate_reduction,
-                cnot_reduction=reduction.cnot_reduction,
-                depth_reduction=reduction.depth_reduction,
-                equivalent=eq_res.equivalent,
-                matrix_distance=eq_res.matrix_distance if eq_res.matrix_distance is not None else -1.0,
-                tolerance=self.tolerance,
+        new_records: List[ObservationRecord] = []
+        for candidate in candidates:
+            # Independent equivalence verification (Phase 5)
+            equiv_result = check_equivalence(
+                circuit,
+                candidate.circuit,
+                tolerance=self.equivalence_tolerance,
             )
-            observations.append(obs)
+            equivalent = equiv_result.equivalent
 
-        return observations, candidates
+            # Compute verified candidate cost (Phase 4)
+            candidate_cost = compute_circuit_cost(candidate.circuit)
 
-    def build_dataset(
-        self,
-        circuits: Sequence[CircuitData],
-        output_dir: Optional[Union[str, Path]] = None,
-        save_circuit_definitions: bool = True,
-    ) -> pd.DataFrame:
-        """Process multiple circuits into a ground-truth observation dataset.
+            # Actual improvements (ground truth — never from GNN)
+            gate_reduction = parent_cost.total_gates - candidate_cost.total_gates
+            cnot_reduction = parent_cost.cnot_count - candidate_cost.cnot_count
+            depth_reduction = parent_cost.depth - candidate_cost.depth
+
+            # Store candidate circuit reference for reconstruction
+            if candidate.circuit.circuit_id not in self._circuit_store:
+                self._circuit_store[candidate.circuit.circuit_id] = candidate.circuit
+
+            record = ObservationRecord(
+                parent_circuit_id=circuit.circuit_id,
+                candidate_id=candidate.candidate_id,
+                transformation_type=candidate.transformation_name,
+                transformation_location=candidate.transformation_location,
+                parent_gate_count=parent_cost.total_gates,
+                parent_cnot_count=parent_cost.cnot_count,
+                parent_depth=parent_cost.depth,
+                candidate_gate_count=candidate_cost.total_gates,
+                candidate_cnot_count=candidate_cost.cnot_count,
+                candidate_depth=candidate_cost.depth,
+                gate_reduction=gate_reduction,
+                cnot_reduction=cnot_reduction,
+                depth_reduction=depth_reduction,
+                equivalent=equivalent,
+                candidate_circuit_id=candidate.circuit.circuit_id,
+            )
+            self._records.append(record)
+            new_records.append(record)
+
+        logger.debug(
+            f"Circuit {circuit.circuit_id}: "
+            f"{len(candidates)} candidates -> {sum(1 for r in new_records if r.equivalent)} equivalent."
+        )
+        return new_records
+
+    def process_batch(self, circuits: Sequence[CircuitData]) -> None:
+        """Process a batch of circuits, accumulating all observations.
 
         Args:
-            circuits: List of source circuits.
-            output_dir: Optional directory to store records and JSON circuit definitions.
-            save_circuit_definitions: If True, saves parent and candidate circuits to disk.
+            circuits: Sequence of CircuitData to process.
+        """
+        for i, circuit in enumerate(circuits):
+            self.process_circuit(circuit)
+            if (i + 1) % 50 == 0:
+                logger.info(
+                    f"Processed {i + 1}/{len(circuits)} circuits, "
+                    f"{len(self._records)} total records."
+                )
+
+        logger.info(
+            f"Dataset built: {len(circuits)} circuits, {len(self._records)} total observations."
+        )
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Return all records as a pandas DataFrame."""
+        return pd.DataFrame([r.to_dict() for r in self._records])
+
+    def save(self, output_dir: Union[str, Path]) -> None:
+        """Save dataset records to disk.
+
+        Saves:
+          - observations.jsonl: one JSON object per line (one record per candidate)
+          - observations.csv: tabular version
+          - circuits/: JSON files for each unique circuit
+
+        Args:
+            output_dir: Directory to write dataset to.
+        """
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save JSONL
+        jsonl_path = output_dir / "observations.jsonl"
+        with open(jsonl_path, "w", encoding="utf-8") as f:
+            for record in self._records:
+                f.write(json.dumps(record.to_dict()) + "\n")
+
+        # Save CSV
+        df = self.to_dataframe()
+        df.to_csv(output_dir / "observations.csv", index=False)
+
+        # Save circuit references
+        circuits_dir = output_dir / "circuits"
+        circuits_dir.mkdir(exist_ok=True)
+        for cid, circuit in self._circuit_store.items():
+            save_circuit(circuit, circuits_dir / f"{cid}.json")
+
+        logger.info(
+            f"Dataset saved to {output_dir}: "
+            f"{len(self._records)} records, {len(self._circuit_store)} circuits."
+        )
+
+    @classmethod
+    def load(cls, output_dir: Union[str, Path]) -> Tuple[List[ObservationRecord], Dict[str, CircuitData]]:
+        """Load a saved dataset from disk.
+
+        Args:
+            output_dir: Directory where dataset was saved.
 
         Returns:
-            Pandas DataFrame containing all observations.
+            Tuple of (records, circuit_store).
         """
-        all_observations: List[CandidateObservation] = []
+        from qco.circuits.serialization import load_circuit
 
-        if output_dir:
-            out_path = Path(output_dir)
-            circuits_dir = out_path / "circuits"
-            circuits_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            circuits_dir = None
+        output_dir = Path(output_dir)
+        jsonl_path = output_dir / "observations.jsonl"
+        circuits_dir = output_dir / "circuits"
 
-        for circuit in circuits:
-            obs_list, cand_list = self.process_circuit(circuit)
-            all_observations.extend(obs_list)
+        records = []
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    records.append(ObservationRecord.from_dict(json.loads(line)))
 
-            if circuits_dir and save_circuit_definitions:
-                save_circuit(circuit, circuits_dir / f"{circuit.circuit_id}.json")
-                for cand in cand_list:
-                    save_circuit(cand.circuit, circuits_dir / f"{cand.candidate_id}.json")
+        circuit_store: Dict[str, CircuitData] = {}
+        if circuits_dir.exists():
+            for cpath in circuits_dir.glob("*.json"):
+                circuit = load_circuit(cpath)
+                circuit_store[circuit.circuit_id] = circuit
 
-        df = pd.DataFrame([obs.to_dict() for obs in all_observations])
-
-        if output_dir:
-            out_path = Path(output_dir)
-            out_path.mkdir(parents=True, exist_ok=True)
-            df.to_csv(out_path / "observations.csv", index=False)
-            try:
-                df.to_parquet(out_path / "observations.parquet", index=False)
-            except Exception as e:
-                logger.warning(f"Could not save parquet format ({e}); CSV saved successfully.")
-            logger.info(f"Saved {len(df)} candidate observations to {out_path}")
-
-        return df
+        logger.info(f"Loaded {len(records)} records, {len(circuit_store)} circuits from {output_dir}.")
+        return records, circuit_store

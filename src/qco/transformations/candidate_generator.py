@@ -1,15 +1,15 @@
-"""Procedural Candidate Generator for QCO.
+"""Procedural Candidate Generator for QCO — Phase 7.
 
-Generates candidate transformed circuits by applying valid rewrite rules from the
-transformation library. It does not select or rank candidates; it strictly produces
-proposals with traceable metadata without mutating the parent circuit.
+Generates all possible transformed circuit candidates from a current circuit
+by systematically applying each valid transformation rule at every applicable
+location. Does not rank or select candidates — that is the GNN's role.
 """
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+import uuid
+from dataclasses import dataclass, field, asdict
+from typing import Any, Dict, List, Optional, Sequence
 
 from qco.circuits.representation import CircuitData
 from qco.metrics.circuit_cost import CircuitCost, compute_circuit_cost
@@ -18,112 +18,113 @@ from qco.transformations.rules import (
     TransformationRule,
     get_default_rules,
 )
+from qco.utils.logging import setup_logger
+
+logger = setup_logger("qco.transformations.candidate_generator")
 
 
-@dataclass(frozen=True)
-class CandidateCircuit:
-    """Represents a proposed transformed circuit with complete metadata."""
+@dataclass
+class Candidate:
+    """A proposed transformed circuit — only a proposal until independently verified."""
 
     candidate_id: str
     parent_circuit_id: str
     transformation_name: str
-    transformation_location: Tuple[int, ...]
+    transformation_location: str      # Human-readable description of where rule applied
+    transformation_indices: List[int]  # Gate indices in parent that participated
     circuit: CircuitData
     preliminary_cost: CircuitCost
-    verified: bool = False
-    verification_status: Optional[str] = "unverified"
-    seed: Optional[int] = None
+    verification_status: str = "unverified"   # "unverified" | "verified_equivalent" | "verified_nonequivalent"
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert CandidateCircuit to serializable dict."""
+        """Serialize candidate metadata (excluding full circuit, which is stored by reference)."""
         return {
             "candidate_id": self.candidate_id,
             "parent_circuit_id": self.parent_circuit_id,
             "transformation_name": self.transformation_name,
-            "transformation_location": list(self.transformation_location),
-            "circuit": self.circuit.to_dict(),
-            "preliminary_cost": self.preliminary_cost.to_dict(),
-            "verified": self.verified,
+            "transformation_location": self.transformation_location,
+            "transformation_indices": self.transformation_indices,
+            "circuit_id": self.circuit.circuit_id,
+            "preliminary_gate_count": self.preliminary_cost.total_gates,
+            "preliminary_cnot_count": self.preliminary_cost.cnot_count,
+            "preliminary_depth": self.preliminary_cost.depth,
             "verification_status": self.verification_status,
-            "seed": self.seed,
         }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> CandidateCircuit:
-        """Construct CandidateCircuit from dict."""
-        return cls(
-            candidate_id=data["candidate_id"],
-            parent_circuit_id=data["parent_circuit_id"],
-            transformation_name=data["transformation_name"],
-            transformation_location=tuple(data["transformation_location"]),
-            circuit=CircuitData.from_dict(data["circuit"]),
-            preliminary_cost=CircuitCost(**data["preliminary_cost"]),
-            verified=data.get("verified", False),
-            verification_status=data.get("verification_status", "unverified"),
-            seed=data.get("seed"),
-        )
 
 
 class CandidateGenerator:
-    """Procedurally identifies applicable rules and generates proposed candidate circuits."""
+    """Generates all candidate transformed circuits from a given circuit.
+
+    Uses all provided transformation rules to enumerate every applicable
+    transformation at every valid location. Does NOT select or rank candidates.
+    """
 
     def __init__(
         self,
         rules: Optional[Sequence[TransformationRule]] = None,
-        seed: Optional[int] = None,
     ) -> None:
-        """Initialize generator with a library of transformation rules."""
-        self.rules: List[TransformationRule] = (
-            list(rules) if rules is not None else get_default_rules()
-        )
-        self.seed = seed
-
-    def generate_candidates(
-        self,
-        circuit: CircuitData,
-        seed: Optional[int] = None,
-    ) -> List[CandidateCircuit]:
-        """Find all applicable transformations and generate corresponding candidate circuits.
-
-        Ensures parent circuit is not mutated and attaches traceable metadata.
+        """Initialize generator with an ordered list of transformation rules.
 
         Args:
-            circuit: The source circuit to transform.
-            seed: Optional seed to record in candidate metadata.
+            rules: List of TransformationRule instances. Defaults to get_default_rules().
+        """
+        self.rules = list(rules) if rules is not None else get_default_rules()
+
+    def generate_candidates(self, circuit: CircuitData) -> List[Candidate]:
+        """Generate all candidates from a circuit by applying every rule at every match.
+
+        Args:
+            circuit: Source CircuitData to transform. Must not be mutated.
 
         Returns:
-            List of CandidateCircuit proposals.
+            List of Candidate objects, each representing one possible transformation.
         """
-        active_seed = seed if seed is not None else self.seed
-        parent_id = circuit.circuit_id
-        candidates: List[CandidateCircuit] = []
+        candidates: List[Candidate] = []
 
-        # Iterate over all registered rules deterministically
         for rule in self.rules:
             matches = rule.find_matches(circuit)
+
             for match in matches:
-                # Apply transformation non-destructively
-                transformed_circuit = rule.apply(circuit, match)
+                try:
+                    transformed = rule.apply(circuit, match)
+                except Exception as e:
+                    logger.warning(
+                        f"Rule '{rule.name}' failed to apply at {match.indices}: {e}"
+                    )
+                    continue
 
-                # Compute preliminary cost
-                prelim_cost = compute_circuit_cost(transformed_circuit)
+                preliminary_cost = compute_circuit_cost(transformed)
 
-                # Deterministic candidate ID
-                loc_str = ",".join(str(idx) for idx in match.indices)
-                candidate_signature = f"{parent_id}:{rule.name}:{loc_str}:{transformed_circuit.circuit_id}"
-                cand_id = hashlib.sha256(candidate_signature.encode("utf-8")).hexdigest()[:16]
-
-                candidate = CandidateCircuit(
-                    candidate_id=cand_id,
-                    parent_circuit_id=parent_id,
+                candidate = Candidate(
+                    candidate_id=str(uuid.uuid4()),
+                    parent_circuit_id=circuit.circuit_id,
                     transformation_name=rule.name,
-                    transformation_location=match.indices,
-                    circuit=transformed_circuit,
-                    preliminary_cost=prelim_cost,
-                    verified=False,
+                    transformation_location=match.description,
+                    transformation_indices=list(match.indices),
+                    circuit=transformed,
+                    preliminary_cost=preliminary_cost,
                     verification_status="unverified",
-                    seed=active_seed,
                 )
                 candidates.append(candidate)
 
+        logger.debug(
+            f"Circuit {circuit.circuit_id}: generated {len(candidates)} candidates "
+            f"across {len(self.rules)} rules."
+        )
         return candidates
+
+    def generate_candidates_from_batch(
+        self, circuits: Sequence[CircuitData]
+    ) -> Dict[str, List[Candidate]]:
+        """Generate candidates for each circuit in a batch.
+
+        Args:
+            circuits: Sequence of CircuitData instances.
+
+        Returns:
+            Dict mapping each circuit_id to its list of Candidate objects.
+        """
+        result: Dict[str, List[Candidate]] = {}
+        for circuit in circuits:
+            result[circuit.circuit_id] = self.generate_candidates(circuit)
+        return result

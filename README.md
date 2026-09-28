@@ -10,11 +10,11 @@ Research prototype combining procedural candidate generation, exact quantum equi
 ├── src/
 │   └── qco/                    # Core Python package
 │       ├── circuits/           # Canonical circuit models, serialization, and procedural generator
-│       ├── transformations/    # Rewrite rules, candidate generator, and transformation validator
+│       ├── transformations/    # Valid rewrite rules, candidate generator, and rule validator
 │       ├── verification/       # Independent quantum simulation & equivalence checks
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
+│       ├── data/               # Schemas, dataset builder, and ground-truth pipeline
 │       ├── graphs/             # Circuit-to-graph translation
-│       ├── data/               # Schemas and ground-truth dataset builders
 │       ├── models/             # GNN and baseline models
 │       ├── optimization/       # Search and optimization algorithms
 │       ├── experiments/        # Experiment execution harnesses
@@ -64,8 +64,8 @@ pytest -v tests/
 | **Phase 4** | **Circuit Cost Metrics** | ✅ Complete | `CircuitCost`, critical path DAG-based `calculate_depth()`, `compute_cost_reduction()`, `test_metrics.py` |
 | **Phase 5** | **Exact Quantum Equivalence Verification** | ✅ Complete | Independent correctness authority: `compute_unitary()`, `check_equivalence()`, global phase handling, `test_verification.py` |
 | **Phase 6** | **Valid Transformation Library** | ✅ Complete | `SelfInverseCancellation`, `CNOTCancellation`, `RotationCombination`, `ZeroRotationRemoval`, `IdentityRemoval`, `RuleValidator`, `test_transformations.py` |
-| **Phase 7** | **Procedural Candidate Generator** | ✅ Complete | `CandidateCircuit`, `CandidateGenerator`, side-effect free candidate proposal, full metadata traceability, `test_candidate_generator.py` |
-| **Phase 8** | **Candidate Verification & Ground-Truth Dataset** | ✅ Complete | `CandidateObservation`, `DatasetBuilder`, non-ML ground-truth pipeline, CSV/Parquet export, ground-truth audit verification, `test_dataset.py` |
+| **Phase 7** | **Procedural Candidate Generator** | ✅ Complete | `Candidate`, `CandidateGenerator` with full metadata (parent ID, rule name, indices, preliminary cost, verification status), `test_candidate_generator.py` |
+| **Phase 8** | **Candidate Verification & Ground-Truth Dataset** | ✅ Complete | `ObservationRecord`, `DatasetBuilder` (full pipeline: generate → verify → cost → store), JSONL/CSV/circuit save-load, `test_dataset_builder.py` |
 | **Phase 9** | Dataset Splitting & Leakage Prevention | ⏳ Planned | Grouped split by parent circuit ID |
 | **Phase 10** | Circuit Graph Representation | ⏳ Planned | Structural PyG graph encoding preserving gate dependencies |
 | **Phase 11** | Non-GNN Baselines | ⏳ Planned | Random search and greedy optimization baselines |
@@ -88,13 +88,10 @@ pytest -v tests/
 ```python
 from qco.circuits import CircuitGenerator, serialize_to_json, deserialize_from_json
 
-# Initialize generator with configured limits
 generator = CircuitGenerator.from_config()
 circuit = generator.generate_circuit()
+print(f"Circuit {circuit.circuit_id}: {circuit.num_qubits} qubits, {len(circuit)} gates")
 
-print(f"Generated circuit {circuit.circuit_id} with {circuit.num_qubits} qubits and {len(circuit)} gates.")
-
-# Serialize to JSON
 json_str = serialize_to_json(circuit)
 recovered = deserialize_from_json(json_str)
 assert circuit == recovered
@@ -106,10 +103,6 @@ from qco.metrics import compute_circuit_cost, compute_cost_reduction
 
 cost = compute_circuit_cost(circuit)
 print(f"Total gates: {cost.total_gates}, CNOTs: {cost.cnot_count}, Depth: {cost.depth}")
-
-# Evaluate reduction against a candidate circuit
-reduction = compute_cost_reduction(original=circuit, candidate=recovered)
-print(f"Gate reduction: {reduction.gate_reduction} ({reduction.gate_reduction_pct:.1f}%)")
 ```
 
 ### 3. Exact Quantum Equivalence Verification
@@ -117,7 +110,6 @@ print(f"Gate reduction: {reduction.gate_reduction} ({reduction.gate_reduction_pc
 from qco.circuits import CircuitData, GateOperation
 from qco.verification import check_equivalence
 
-# Define two circuits: H-Z-H vs X
 c1 = CircuitData(num_qubits=1, gates=[GateOperation("H", (0,)), GateOperation("Z", (0,)), GateOperation("H", (0,))])
 c2 = CircuitData(num_qubits=1, gates=[GateOperation("X", (0,))])
 
@@ -125,33 +117,32 @@ result = check_equivalence(c1, c2)
 print(f"Equivalent: {result.equivalent}, Matrix Distance: {result.matrix_distance:.2e}")
 ```
 
-### 4. Applying Transformation Rules with Verification
+### 4. Applying Transformation Rules
 ```python
-from qco.circuits import CircuitData, GateOperation
 from qco.transformations import SelfInverseCancellation, RuleValidator
 
-# Circuit containing self-inverse gates: H H
 circuit = CircuitData(num_qubits=1, gates=[GateOperation("H", (0,)), GateOperation("H", (0,))])
 rule = SelfInverseCancellation()
 validator = RuleValidator()
 
-# Find matches and validate
-matches = rule.find_matches(circuit)
-for match in matches:
-    val_result = validator.validate_transformation(rule, circuit, match)
-    print(f"Rule: {val_result.rule_name}, Valid: {val_result.valid}, Gate reduction: {val_result.actual_gate_reduction}")
+for match in rule.find_matches(circuit):
+    result = validator.validate_transformation(rule, circuit, match)
+    print(f"Rule: {result.rule_name}, Valid: {result.valid}, Gate Δ: {result.actual_gate_reduction}")
 ```
 
-### 5. Generating Candidates & Building Ground-Truth Datasets
+### 5. Building the Ground-Truth Dataset
 ```python
 from qco.circuits import CircuitGenerator
 from qco.data import DatasetBuilder
 
 generator = CircuitGenerator.from_config()
-circuits = generator.generate_batch(5)
+circuits = generator.generate_batch(20)
 
 builder = DatasetBuilder()
-# Process circuits through candidate generation, exact verification, and cost measurement
-df = builder.build_dataset(circuits, output_dir="data/raw")
-print(f"Generated {len(df)} verified ground-truth candidate observation records.")
+builder.process_batch(circuits)
+builder.save("data/raw/dataset_v1")
+
+df = builder.to_dataframe()
+print(f"Dataset: {len(df)} observations, {df['equivalent'].sum()} equivalent")
+print(df[["transformation_type", "gate_reduction", "equivalent"]].value_counts())
 ```
