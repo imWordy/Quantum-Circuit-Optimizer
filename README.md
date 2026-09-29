@@ -13,7 +13,7 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── transformations/    # Valid rewrite rules, candidate generator, and rule validator
 │       ├── verification/       # Independent quantum simulation & equivalence checks
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
-│       ├── data/               # Schemas, dataset builder, and ground-truth pipeline
+│       ├── data/               # Schemas, dataset builder, and leakage-free dataset splitting
 │       ├── graphs/             # Circuit-to-graph translation
 │       ├── models/             # GNN and baseline models
 │       ├── optimization/       # Search and optimization algorithms
@@ -66,7 +66,7 @@ pytest -v tests/
 | **Phase 6** | **Valid Transformation Library** | ✅ Complete | `SelfInverseCancellation`, `CNOTCancellation`, `RotationCombination`, `ZeroRotationRemoval`, `IdentityRemoval`, `RuleValidator`, `test_transformations.py` |
 | **Phase 7** | **Procedural Candidate Generator** | ✅ Complete | `Candidate`, `CandidateGenerator` with full metadata (parent ID, rule name, indices, preliminary cost, verification status), `test_candidate_generator.py` |
 | **Phase 8** | **Candidate Verification & Ground-Truth Dataset** | ✅ Complete | `ObservationRecord`, `DatasetBuilder` (full pipeline: generate → verify → cost → store), JSONL/CSV/circuit save-load, `test_dataset_builder.py` |
-| **Phase 9** | Dataset Splitting & Leakage Prevention | ⏳ Planned | Grouped split by parent circuit ID |
+| **Phase 9** | **Dataset Splitting & Leakage Prevention** | ✅ Complete | `DatasetSplits`, grouped disjoint splitting by `parent_circuit_id`, `validate_leakage()`, save/load split partitions, `test_dataset_splits.py` |
 | **Phase 10** | Circuit Graph Representation | ⏳ Planned | Structural PyG graph encoding preserving gate dependencies |
 | **Phase 11** | Non-GNN Baselines | ⏳ Planned | Random search and greedy optimization baselines |
 | **Phase 12** | GNN Dataset Interface | ⏳ Planned | PyG `InMemoryDataset` with graph pairs and candidate features |
@@ -130,19 +130,24 @@ for match in rule.find_matches(circuit):
     print(f"Rule: {result.rule_name}, Valid: {result.valid}, Gate Δ: {result.actual_gate_reduction}")
 ```
 
-### 5. Building the Ground-Truth Dataset
+### 5. Building the Ground-Truth Dataset and Splitting with Leakage Prevention
 ```python
 from qco.circuits import CircuitGenerator
-from qco.data import DatasetBuilder
+from qco.data import DatasetBuilder, split_dataset_from_config
 
+# Generate circuits and build verified dataset
 generator = CircuitGenerator.from_config()
-circuits = generator.generate_batch(20)
+circuits = generator.generate_batch(50)
 
 builder = DatasetBuilder()
 builder.process_batch(circuits)
-builder.save("data/raw/dataset_v1")
 
-df = builder.to_dataframe()
-print(f"Dataset: {len(df)} observations, {df['equivalent'].sum()} equivalent")
-print(df[["transformation_type", "gate_reduction", "equivalent"]].value_counts())
+# Split by parent circuit ID (70% train, 15% val, 15% test) to prevent data leakage
+splits = split_dataset_from_config(builder.records, circuit_store=builder.circuit_store)
+splits.validate_leakage()
+splits.save("data/splits/split_v1")
+
+print(f"Train records: {len(splits.train_records)} ({len(splits.train_parent_ids)} parent circuits)")
+print(f"Val records:   {len(splits.val_records)} ({len(splits.val_parent_ids)} parent circuits)")
+print(f"Test records:  {len(splits.test_records)} ({len(splits.test_parent_ids)} parent circuits)")
 ```
