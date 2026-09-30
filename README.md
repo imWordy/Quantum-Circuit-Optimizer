@@ -15,8 +15,8 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
 │       ├── data/               # Schemas, dataset builder, and leakage-free dataset splitting
 │       ├── graphs/             # Circuit-to-graph translation (PyTorch Geometric)
-│       ├── models/             # GNN and baseline models
-│       ├── optimization/       # Search and optimization algorithms
+│       ├── models/             # Baseline models (AggregateFeatureMLP) and GNN architectures
+│       ├── optimization/       # Optimization algorithms (RandomOptimizer, GreedyOptimizer)
 │       ├── experiments/        # Experiment execution harnesses
 │       ├── evaluation/         # Metrics and report generation
 │       └── utils/              # Configuration, reproducibility, logging helpers
@@ -68,7 +68,7 @@ pytest -v tests/
 | **Phase 8** | **Candidate Verification & Ground-Truth Dataset** | ✅ Complete | `ObservationRecord`, `DatasetBuilder` (full pipeline: generate → verify → cost → store), JSONL/CSV/circuit save-load, `test_dataset_builder.py` |
 | **Phase 9** | **Dataset Splitting & Leakage Prevention** | ✅ Complete | `DatasetSplits`, grouped disjoint splitting by `parent_circuit_id`, `validate_leakage()`, save/load split partitions, `test_dataset_splits.py` |
 | **Phase 10** | **Circuit Graph Representation** | ✅ Complete | `circuit_to_graph()`, PyTorch Geometric `Data` encoding, temporal order & qubit dependency edges, structural distinguishability, `test_circuit_graph.py` |
-| **Phase 11** | Non-GNN Baselines | ⏳ Planned | Random search and greedy optimization baselines |
+| **Phase 11** | **Non-GNN Baselines** | ✅ Complete | `BaseOptimizer`, `RandomOptimizer` (Baseline A), `GreedyOptimizer` (Baseline B), `AggregateFeatureMLP` (Baseline C), `test_baselines.py` |
 | **Phase 12** | GNN Dataset Interface | ⏳ Planned | PyG `InMemoryDataset` with graph pairs and candidate features |
 | **Phase 13** | Initial GNN Model | ⏳ Planned | GNN encoder with prediction head for gate reduction |
 | **Phase 14** | GNN Training | ⏳ Planned | Training loop, validation, metrics (MSE, MAE, R²) |
@@ -170,4 +170,28 @@ circuit = CircuitData(
 graph = circuit_to_graph(circuit)
 print(f"Graph nodes: {graph.num_nodes}, Node feature shape: {graph.x.shape}")
 print(f"Graph edges: {graph.edge_index.shape[1]}, Edge index:\n{graph.edge_index}")
+```
+
+### 7. Optimizing Circuits with Baselines (Random & Greedy)
+```python
+from qco.circuits import CircuitData, GateOperation
+from qco.optimization import GreedyOptimizer, RandomOptimizer
+
+circuit = CircuitData(
+    num_qubits=2,
+    gates=[
+        GateOperation("H", (0,)),
+        GateOperation("H", (0,)),
+        GateOperation("CX", (0, 1)),
+        GateOperation("CX", (0, 1)),
+        GateOperation("X", (0,)),
+    ],
+)
+
+greedy = GreedyOptimizer(max_iterations=10)
+result = greedy.optimize(circuit)
+
+print(f"Initial gates: {result.initial_cost.total_gates} -> Final gates: {result.final_cost.total_gates}")
+print(f"Gate reduction: {result.gate_reduction}, Equivalent: {result.is_equivalent}")
+print(f"Evaluations: {result.candidate_evaluations}, Equivalence checks: {result.equivalence_checks}")
 ```
