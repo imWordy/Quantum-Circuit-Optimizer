@@ -13,7 +13,7 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── transformations/    # Valid rewrite rules, candidate generator, and rule validator
 │       ├── verification/       # Independent quantum simulation & equivalence checks
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
-│       ├── data/               # Schemas, dataset builder, and leakage-free dataset splitting
+│       ├── data/               # Schemas, dataset builder, splitting, candidate features & GNNDataset
 │       ├── graphs/             # Circuit-to-graph translation (PyTorch Geometric)
 │       ├── models/             # Baseline models (AggregateFeatureMLP) and GNN architectures
 │       ├── optimization/       # Optimization algorithms (RandomOptimizer, GreedyOptimizer)
@@ -69,7 +69,7 @@ pytest -v tests/
 | **Phase 9** | **Dataset Splitting & Leakage Prevention** | ✅ Complete | `DatasetSplits`, grouped disjoint splitting by `parent_circuit_id`, `validate_leakage()`, save/load split partitions, `test_dataset_splits.py` |
 | **Phase 10** | **Circuit Graph Representation** | ✅ Complete | `circuit_to_graph()`, PyTorch Geometric `Data` encoding, temporal order & qubit dependency edges, structural distinguishability, `test_circuit_graph.py` |
 | **Phase 11** | **Non-GNN Baselines** | ✅ Complete | `BaseOptimizer`, `RandomOptimizer` (Baseline A), `GreedyOptimizer` (Baseline B), `AggregateFeatureMLP` (Baseline C), `test_baselines.py` |
-| **Phase 12** | GNN Dataset Interface | ⏳ Planned | PyG `InMemoryDataset` with graph pairs and candidate features |
+| **Phase 12** | **GNN Dataset Interface** | ✅ Complete | `CircuitCandidateData`, `GNNDataset`, `extract_candidate_features()`, zero test-label leakage, PyG batching, `test_gnn_dataset.py` |
 | **Phase 13** | Initial GNN Model | ⏳ Planned | GNN encoder with prediction head for gate reduction |
 | **Phase 14** | GNN Training | ⏳ Planned | Training loop, validation, metrics (MSE, MAE, R²) |
 | **Phase 15** | GNN Candidate Ranking | ⏳ Planned | Candidate prioritization and rank correlation evaluation |
@@ -194,4 +194,24 @@ result = greedy.optimize(circuit)
 print(f"Initial gates: {result.initial_cost.total_gates} -> Final gates: {result.final_cost.total_gates}")
 print(f"Gate reduction: {result.gate_reduction}, Equivalent: {result.is_equivalent}")
 print(f"Evaluations: {result.candidate_evaluations}, Equivalence checks: {result.equivalence_checks}")
+```
+
+### 8. Loading Graph Data Pairs for GNN Training & Batching (PyG)
+```python
+from torch.utils.data import DataLoader
+from qco.data import GNNDataset, collate_gnn_batch
+
+# Load dataset splits into GNNDataset pairs
+gnn_datasets = GNNDataset.from_splits(splits, target_field="gate_reduction")
+train_loader = DataLoader(
+    gnn_datasets["train"],
+    batch_size=8,
+    shuffle=True,
+    collate_fn=collate_gnn_batch,
+)
+
+for batch in train_loader:
+    print(f"Batch graphs: {batch.num_graphs}, Nodes: {batch.num_nodes}, Target (y): {batch.y.squeeze()}")
+    print(f"Candidate features shape: {batch.candidate_features.shape}")
+    break
 ```
