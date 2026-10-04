@@ -15,10 +15,10 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
 │       ├── data/               # Schemas, dataset builder, splitting, candidate features & GNNDataset
 │       ├── graphs/             # Circuit-to-graph translation (PyTorch Geometric)
-│       ├── models/             # Baseline models (AggregateFeatureMLP) and GNN architectures (CircuitGNN)
+│       ├── models/             # Baseline models, GNN architectures (CircuitGNN), and training harness (GNNTrainer)
 │       ├── optimization/       # Optimization algorithms (RandomOptimizer, GreedyOptimizer)
 │       ├── experiments/        # Experiment execution harnesses
-│       ├── evaluation/         # Metrics and report generation
+│       ├── evaluation/         # Metrics (MAE, RMSE, R²) and report generation
 │       └── utils/              # Configuration, reproducibility, logging helpers
 ├── tests/                      # Automated pytest test suites
 ├── data/                       # Datasets (raw, processed, splits)
@@ -71,7 +71,7 @@ pytest -v tests/
 | **Phase 11** | **Non-GNN Baselines** | ✅ Complete | `BaseOptimizer`, `RandomOptimizer` (Baseline A), `GreedyOptimizer` (Baseline B), `AggregateFeatureMLP` (Baseline C), `test_baselines.py` |
 | **Phase 12** | **GNN Dataset Interface** | ✅ Complete | `CircuitCandidateData`, `GNNDataset`, `extract_candidate_features()`, zero test-label leakage, PyG batching, `test_gnn_dataset.py` |
 | **Phase 13** | **Initial GNN Model** | ✅ Complete | `CircuitGNN` (GCN/GAT layers, residual connections, global mean/max pooling, candidate fusion head), regression training, `test_gnn_model.py` |
-| **Phase 14** | GNN Training | ⏳ Planned | Training loop, validation, metrics (MSE, MAE, R²) |
+| **Phase 14** | **GNN Training** | ✅ Complete | `GNNTrainer`, training/validation loop, MAE/RMSE/R² metrics, model checkpointing, evaluation against trivial mean predictor, `test_trainer.py` |
 | **Phase 15** | GNN Candidate Ranking | ⏳ Planned | Candidate prioritization and rank correlation evaluation |
 | **Phase 16** | GNN-Guided Iterative Optimizer | ⏳ Planned | End-to-end optimizer with Qiskit equivalence verification |
 | **Phase 17** | Feedback Learning | ⏳ Planned | Online observation collection and model fine-tuning |
@@ -196,21 +196,22 @@ print(f"Gate reduction: {result.gate_reduction}, Equivalent: {result.is_equivale
 print(f"Evaluations: {result.candidate_evaluations}, Equivalence checks: {result.equivalence_checks}")
 ```
 
-### 8. Predicting Candidate Benefits with CircuitGNN
+### 8. Training CircuitGNN with Validation and Checkpointing
 ```python
 from torch.utils.data import DataLoader
 from qco.data import GNNDataset, collate_gnn_batch
-from qco.models import CircuitGNN
+from qco.models import CircuitGNN, GNNTrainer
 
-# Load dataset and prepare GNN model
+# Prepare data loaders from split
 gnn_datasets = GNNDataset.from_splits(splits, target_field="gate_reduction")
-loader = DataLoader(gnn_datasets["train"], batch_size=8, shuffle=True, collate_fn=collate_gnn_batch)
+train_loader = DataLoader(gnn_datasets["train"], batch_size=8, shuffle=True, collate_fn=collate_gnn_batch)
+val_loader = DataLoader(gnn_datasets["val"], batch_size=8, shuffle=False, collate_fn=collate_gnn_batch)
 
+# Train model with automatic checkpointing and metric tracking
 model = CircuitGNN(hidden_dim=64, gnn_type="gcn")
-batch = next(iter(loader))
+trainer = GNNTrainer(model, lr=0.001)
+history = trainer.fit(train_loader, val_loader, epochs=10, checkpoint_dir="models/gnn_checkpoints")
 
-# Predict gate reduction for candidate transformations
-predicted_reduction = model(batch)
-print(f"Predicted gate reductions shape: {predicted_reduction.shape}")
-print(f"Sample prediction: {predicted_reduction[0].item():.2f} (Actual: {batch.y[0].item():.2f})")
+print(f"Best validation loss: {history.best_val_loss:.4f} at epoch {history.best_epoch}")
+print(f"Trivial Baseline Val MAE: {history.trivial_baseline_val_mae:.4f}")
 ```

@@ -9,6 +9,11 @@ from qco.models.mlp_baseline import (
     AggregateFeatureMLP,
     extract_aggregate_features,
 )
+from qco.models.trainer import (
+    EpochMetrics,
+    GNNTrainer,
+    TrainingHistory,
+)
 
 __all__ = [
     "CircuitGNN",
@@ -16,4 +21,7 @@ __all__ = [
     "DEFAULT_CAND_DIM",
     "AggregateFeatureMLP",
     "extract_aggregate_features",
+    "GNNTrainer",
+    "EpochMetrics",
+    "TrainingHistory",
 ]
