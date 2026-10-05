@@ -9,6 +9,11 @@ from qco.models.mlp_baseline import (
     AggregateFeatureMLP,
     extract_aggregate_features,
 )
+from qco.models.ranker import (
+    CandidateRanker,
+    RankedCandidate,
+    compute_ranking_metrics,
+)
 from qco.models.trainer import (
     EpochMetrics,
     GNNTrainer,
@@ -24,4 +29,7 @@ __all__ = [
     "GNNTrainer",
     "EpochMetrics",
     "TrainingHistory",
+    "CandidateRanker",
+    "RankedCandidate",
+    "compute_ranking_metrics",
 ]

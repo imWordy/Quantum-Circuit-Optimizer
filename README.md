@@ -15,10 +15,10 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
 │       ├── data/               # Schemas, dataset builder, splitting, candidate features & GNNDataset
 │       ├── graphs/             # Circuit-to-graph translation (PyTorch Geometric)
-│       ├── models/             # Baseline models, GNN architectures (CircuitGNN), and training harness (GNNTrainer)
+│       ├── models/             # Baseline models, GNN architectures (CircuitGNN), GNNTrainer & CandidateRanker
 │       ├── optimization/       # Optimization algorithms (RandomOptimizer, GreedyOptimizer)
 │       ├── experiments/        # Experiment execution harnesses
-│       ├── evaluation/         # Metrics (MAE, RMSE, R²) and report generation
+│       ├── evaluation/         # Regression & ranking metrics (MAE, RMSE, R², Spearman rho, top-k)
 │       └── utils/              # Configuration, reproducibility, logging helpers
 ├── tests/                      # Automated pytest test suites
 ├── data/                       # Datasets (raw, processed, splits)
@@ -72,7 +72,7 @@ pytest -v tests/
 | **Phase 12** | **GNN Dataset Interface** | ✅ Complete | `CircuitCandidateData`, `GNNDataset`, `extract_candidate_features()`, zero test-label leakage, PyG batching, `test_gnn_dataset.py` |
 | **Phase 13** | **Initial GNN Model** | ✅ Complete | `CircuitGNN` (GCN/GAT layers, residual connections, global mean/max pooling, candidate fusion head), regression training, `test_gnn_model.py` |
 | **Phase 14** | **GNN Training** | ✅ Complete | `GNNTrainer`, training/validation loop, MAE/RMSE/R² metrics, model checkpointing, evaluation against trivial mean predictor, `test_trainer.py` |
-| **Phase 15** | GNN Candidate Ranking | ⏳ Planned | Candidate prioritization and rank correlation evaluation |
+| **Phase 15** | **GNN Candidate Ranking** | ✅ Complete | `CandidateRanker`, `RankedCandidate`, `compute_ranking_metrics` (Spearman rho, top-1/top-k success), independent verification rule enforcement, `test_ranker.py` |
 | **Phase 16** | GNN-Guided Iterative Optimizer | ⏳ Planned | End-to-end optimizer with Qiskit equivalence verification |
 | **Phase 17** | Feedback Learning | ⏳ Planned | Online observation collection and model fine-tuning |
 | **Phase 18** | Final Experimental Framework | ⏳ Planned | Comparative benchmark on held-out test suite |
@@ -214,4 +214,21 @@ history = trainer.fit(train_loader, val_loader, epochs=10, checkpoint_dir="model
 
 print(f"Best validation loss: {history.best_val_loss:.4f} at epoch {history.best_epoch}")
 print(f"Trivial Baseline Val MAE: {history.trivial_baseline_val_mae:.4f}")
+```
+
+### 9. Ranking Candidate Transformations with Trained CircuitGNN
+```python
+from qco.models import CandidateRanker
+from qco.verification import check_equivalence
+
+ranker = CandidateRanker(model)
+ranked_candidates = ranker.rank_candidates(circuit)
+
+for rc in ranked_candidates:
+    print(f"Rank {rc.rank}: Rule={rc.candidate.transformation_name}, Predicted Score={rc.predicted_score:.3f}")
+
+# Critical Principle: Always independently verify before adoption
+top_candidate = ranked_candidates[0].candidate
+equiv = check_equivalence(circuit, top_candidate.circuit)
+print(f"Top candidate independently verified equivalent: {equiv.equivalent}")
 ```
