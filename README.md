@@ -16,7 +16,7 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── data/               # Schemas, dataset builder, splitting, candidate features & GNNDataset
 │       ├── graphs/             # Circuit-to-graph translation (PyTorch Geometric)
 │       ├── models/             # Baseline models, GNN architectures (CircuitGNN), GNNTrainer & CandidateRanker
-│       ├── optimization/       # Optimization algorithms (RandomOptimizer, GreedyOptimizer)
+│       ├── optimization/       # Optimizer suite (RandomOptimizer, GreedyOptimizer, GNNGuidedOptimizer)
 │       ├── experiments/        # Experiment execution harnesses
 │       ├── evaluation/         # Regression & ranking metrics (MAE, RMSE, R², Spearman rho, top-k)
 │       └── utils/              # Configuration, reproducibility, logging helpers
@@ -73,7 +73,7 @@ pytest -v tests/
 | **Phase 13** | **Initial GNN Model** | ✅ Complete | `CircuitGNN` (GCN/GAT layers, residual connections, global mean/max pooling, candidate fusion head), regression training, `test_gnn_model.py` |
 | **Phase 14** | **GNN Training** | ✅ Complete | `GNNTrainer`, training/validation loop, MAE/RMSE/R² metrics, model checkpointing, evaluation against trivial mean predictor, `test_trainer.py` |
 | **Phase 15** | **GNN Candidate Ranking** | ✅ Complete | `CandidateRanker`, `RankedCandidate`, `compute_ranking_metrics` (Spearman rho, top-1/top-k success), independent verification rule enforcement, `test_ranker.py` |
-| **Phase 16** | GNN-Guided Iterative Optimizer | ⏳ Planned | End-to-end optimizer with Qiskit equivalence verification |
+| **Phase 16** | **GNN-Guided Iterative Optimizer** | ✅ Complete | `GNNGuidedOptimizer`, end-to-end loop: generate → GNN rank → verify equivalence → strictly beneficial gate reduction acceptance, cycle prevention, `test_gnn_optimizer.py` |
 | **Phase 17** | Feedback Learning | ⏳ Planned | Online observation collection and model fine-tuning |
 | **Phase 18** | Final Experimental Framework | ⏳ Planned | Comparative benchmark on held-out test suite |
 | **Phase 19** | Ablation Studies | ⏳ Planned | Graph structure vs aggregate features ablation |
@@ -196,39 +196,19 @@ print(f"Gate reduction: {result.gate_reduction}, Equivalent: {result.is_equivale
 print(f"Evaluations: {result.candidate_evaluations}, Equivalence checks: {result.equivalence_checks}")
 ```
 
-### 8. Training CircuitGNN with Validation and Checkpointing
+### 8. End-to-End Optimization with GNN-Guided Iterative Optimizer
 ```python
-from torch.utils.data import DataLoader
-from qco.data import GNNDataset, collate_gnn_batch
-from qco.models import CircuitGNN, GNNTrainer
+from qco.models import CircuitGNN
+from qco.optimization import GNNGuidedOptimizer
 
-# Prepare data loaders from split
-gnn_datasets = GNNDataset.from_splits(splits, target_field="gate_reduction")
-train_loader = DataLoader(gnn_datasets["train"], batch_size=8, shuffle=True, collate_fn=collate_gnn_batch)
-val_loader = DataLoader(gnn_datasets["val"], batch_size=8, shuffle=False, collate_fn=collate_gnn_batch)
-
-# Train model with automatic checkpointing and metric tracking
+# Initialize trained GNN model and guided optimizer
 model = CircuitGNN(hidden_dim=64, gnn_type="gcn")
-trainer = GNNTrainer(model, lr=0.001)
-history = trainer.fit(train_loader, val_loader, epochs=10, checkpoint_dir="models/gnn_checkpoints")
+optimizer = GNNGuidedOptimizer(model=model, max_iterations=20)
 
-print(f"Best validation loss: {history.best_val_loss:.4f} at epoch {history.best_epoch}")
-print(f"Trivial Baseline Val MAE: {history.trivial_baseline_val_mae:.4f}")
-```
+# Run optimization: candidates ranked by GNN -> verified by Phase 5 -> accepted monotonically
+res = optimizer.optimize(circuit)
 
-### 9. Ranking Candidate Transformations with Trained CircuitGNN
-```python
-from qco.models import CandidateRanker
-from qco.verification import check_equivalence
-
-ranker = CandidateRanker(model)
-ranked_candidates = ranker.rank_candidates(circuit)
-
-for rc in ranked_candidates:
-    print(f"Rank {rc.rank}: Rule={rc.candidate.transformation_name}, Predicted Score={rc.predicted_score:.3f}")
-
-# Critical Principle: Always independently verify before adoption
-top_candidate = ranked_candidates[0].candidate
-equiv = check_equivalence(circuit, top_candidate.circuit)
-print(f"Top candidate independently verified equivalent: {equiv.equivalent}")
+print(f"Optimizer: {res.optimizer_name}")
+print(f"Reduction: {res.gate_reduction} gates (from {res.initial_cost.total_gates} down to {res.final_cost.total_gates})")
+print(f"Equivalent: {res.is_equivalent}, Evaluations: {res.candidate_evaluations}, Checks: {res.equivalence_checks}")
 ```
