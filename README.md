@@ -15,7 +15,7 @@ Research prototype combining procedural candidate generation, exact quantum equi
 │       ├── metrics/            # Circuit cost metrics (gate counts, depth, reductions)
 │       ├── data/               # Schemas, dataset builder, splitting, candidate features & GNNDataset
 │       ├── graphs/             # Circuit-to-graph translation (PyTorch Geometric)
-│       ├── models/             # Baseline models, GNN architectures (CircuitGNN), GNNTrainer & CandidateRanker
+│       ├── models/             # Baseline models, GNN architectures, GNNTrainer, Ranker & FeedbackLoopManager
 │       ├── optimization/       # Optimizer suite (RandomOptimizer, GreedyOptimizer, GNNGuidedOptimizer)
 │       ├── experiments/        # Experiment execution harnesses
 │       ├── evaluation/         # Regression & ranking metrics (MAE, RMSE, R², Spearman rho, top-k)
@@ -74,7 +74,7 @@ pytest -v tests/
 | **Phase 14** | **GNN Training** | ✅ Complete | `GNNTrainer`, training/validation loop, MAE/RMSE/R² metrics, model checkpointing, evaluation against trivial mean predictor, `test_trainer.py` |
 | **Phase 15** | **GNN Candidate Ranking** | ✅ Complete | `CandidateRanker`, `RankedCandidate`, `compute_ranking_metrics` (Spearman rho, top-1/top-k success), independent verification rule enforcement, `test_ranker.py` |
 | **Phase 16** | **GNN-Guided Iterative Optimizer** | ✅ Complete | `GNNGuidedOptimizer`, end-to-end loop: generate → GNN rank → verify equivalence → strictly beneficial gate reduction acceptance, cycle prevention, `test_gnn_optimizer.py` |
-| **Phase 17** | Feedback Learning | ⏳ Planned | Online observation collection and model fine-tuning |
+| **Phase 17** | **Feedback Learning** | ✅ Complete | `FeedbackRecord`, `FeedbackLoopManager`, online observation logging during optimization, incremental model retraining rounds without divergence, `test_feedback.py` |
 | **Phase 18** | Final Experimental Framework | ⏳ Planned | Comparative benchmark on held-out test suite |
 | **Phase 19** | Ablation Studies | ⏳ Planned | Graph structure vs aggregate features ablation |
 | **Phase 20** | Final Validation & Reproducibility | ⏳ Planned | End-to-end automated reproducibility check |
@@ -211,4 +211,20 @@ res = optimizer.optimize(circuit)
 print(f"Optimizer: {res.optimizer_name}")
 print(f"Reduction: {res.gate_reduction} gates (from {res.initial_cost.total_gates} down to {res.final_cost.total_gates})")
 print(f"Equivalent: {res.is_equivalent}, Evaluations: {res.candidate_evaluations}, Checks: {res.equivalence_checks}")
+```
+
+### 9. Feedback Learning with Online Observation Updates
+```python
+from qco.models import FeedbackLoopManager
+
+# Wrap model and dataset splits in the feedback manager
+manager = FeedbackLoopManager(model=model, initial_splits=splits, lr=0.001)
+
+# Attach manager as feedback collector to capture real optimization evaluations
+optimizer = GNNGuidedOptimizer(model=model, feedback_collector=manager)
+optimizer.optimize(circuit)
+
+# Step feedback round: incorporates newly verified records and fine-tunes GNN
+round_res = manager.step_feedback_round(new_records=new_verified_records, new_circuits=new_circuit_dict)
+print(f"Feedback Round {round_res.round_idx}: Val MAE improved from {round_res.val_mae_before:.4f} to {round_res.val_mae_after:.4f}")
 ```

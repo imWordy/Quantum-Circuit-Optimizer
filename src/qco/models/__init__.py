@@ -1,5 +1,10 @@
 """Models subpackage exports."""
 
+from qco.models.feedback import (
+    FeedbackLoopManager,
+    FeedbackRecord,
+    FeedbackRoundResult,
+)
 from qco.models.gnn import (
     DEFAULT_CAND_DIM,
     DEFAULT_NODE_DIM,
@@ -32,4 +37,7 @@ __all__ = [
     "CandidateRanker",
     "RankedCandidate",
     "compute_ranking_metrics",
+    "FeedbackRecord",
+    "FeedbackRoundResult",
+    "FeedbackLoopManager",
 ]

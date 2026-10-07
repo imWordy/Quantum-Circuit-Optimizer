@@ -59,6 +59,7 @@ class GNNGuidedOptimizer(BaseOptimizer):
         tolerance: float = 1e-7,
         seed: Optional[int] = 42,
         candidate_generator: Optional[CandidateGenerator] = None,
+        feedback_collector: Optional[Any] = None,
     ) -> None:
         """Initialize GNN-guided optimizer.
 
@@ -69,11 +70,13 @@ class GNNGuidedOptimizer(BaseOptimizer):
             tolerance: Numerical tolerance for quantum equivalence verification.
             seed: Seed for reproducibility if needed.
             candidate_generator: Generator producing candidate transformations.
+            feedback_collector: Optional collector instance (e.g. FeedbackLoopManager).
         """
         super().__init__(max_iterations=max_iterations, tolerance=tolerance, seed=seed)
         self.model = model
         self.ranker = CandidateRanker(model=model, candidate_generator=candidate_generator)
         self.max_evaluations_per_iter = max_evaluations_per_iter
+        self.feedback_collector = feedback_collector
 
     @property
     def name(self) -> str:
@@ -133,10 +136,29 @@ class GNNGuidedOptimizer(BaseOptimizer):
                     current, cand.circuit, tolerance=self.tolerance
                 )
 
-                if equiv.equivalent:
-                    # 4. Calculate exact cost metrics (Phase 4 authority)
-                    cand_cost = compute_circuit_cost(cand.circuit)
+                cand_cost = compute_circuit_cost(cand.circuit)
+                actual_benefit = current_cost.total_gates - cand_cost.total_gates
 
+                # Record feedback if collector is attached
+                if self.feedback_collector is not None:
+                    from qco.models.feedback import FeedbackRecord
+                    fb_rec = FeedbackRecord(
+                        model_version=getattr(self.feedback_collector, "current_model_version", "v1"),
+                        circuit_id=current.circuit_id,
+                        candidate_id=cand.candidate_id,
+                        transformation_type=cand.transformation_name,
+                        transformation_location=cand.transformation_location,
+                        predicted_benefit=rc.predicted_score,
+                        actual_benefit=actual_benefit,
+                        is_equivalent=equiv.equivalent,
+                        candidate_gate_count=cand_cost.total_gates,
+                        candidate_cnot_count=cand_cost.cnot_count,
+                        candidate_depth=cand_cost.depth,
+                        optimizer_iteration=it + 1,
+                    )
+                    self.feedback_collector.record_feedback(fb_rec)
+
+                if equiv.equivalent:
                     # Primary acceptance rule: strictly beneficial improvement
                     if cand_cost.total_gates < current_cost.total_gates:
                         history.append(
