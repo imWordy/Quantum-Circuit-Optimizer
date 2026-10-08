@@ -19,7 +19,6 @@ from qco.evaluation.metrics import compute_regression_metrics
 from qco.models.gnn import CircuitGNN
 from qco.models.ranker import CandidateRanker, compute_ranking_metrics
 from qco.models.trainer import GNNTrainer
-from qco.optimization.gnn_optimizer import GNNGuidedOptimizer
 from qco.utils.logging import setup_logger
 
 logger = setup_logger("qco.models.feedback")

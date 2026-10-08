@@ -7,6 +7,7 @@ from qco.optimization.base import (
 )
 from qco.optimization.gnn_optimizer import GNNGuidedOptimizer
 from qco.optimization.greedy_optimizer import GreedyOptimizer
+from qco.optimization.mlp_optimizer import MLPOptimizer
 from qco.optimization.random_optimizer import RandomOptimizer
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "RandomOptimizer",
     "GreedyOptimizer",
     "GNNGuidedOptimizer",
+    "MLPOptimizer",
 ]

@@ -75,7 +75,7 @@ pytest -v tests/
 | **Phase 15** | **GNN Candidate Ranking** | ✅ Complete | `CandidateRanker`, `RankedCandidate`, `compute_ranking_metrics` (Spearman rho, top-1/top-k success), independent verification rule enforcement, `test_ranker.py` |
 | **Phase 16** | **GNN-Guided Iterative Optimizer** | ✅ Complete | `GNNGuidedOptimizer`, end-to-end loop: generate → GNN rank → verify equivalence → strictly beneficial gate reduction acceptance, cycle prevention, `test_gnn_optimizer.py` |
 | **Phase 17** | **Feedback Learning** | ✅ Complete | `FeedbackRecord`, `FeedbackLoopManager`, online observation logging during optimization, incremental model retraining rounds without divergence, `test_feedback.py` |
-| **Phase 18** | Final Experimental Framework | ⏳ Planned | Comparative benchmark on held-out test suite |
+| **Phase 18** | **Final Experimental Framework** | ✅ Complete | `BenchmarkRecord`, `BenchmarkHarness`, fair multi-method comparison (Random, Greedy, GNN, MLP), all 16 metrics logged, `test_benchmark.py` |
 | **Phase 19** | Ablation Studies | ⏳ Planned | Graph structure vs aggregate features ablation |
 | **Phase 20** | Final Validation & Reproducibility | ⏳ Planned | End-to-end automated reproducibility check |
 | **Phase 21** | Final Demonstration | ⏳ Planned | End-to-end circuit optimization showcase |
@@ -227,4 +227,27 @@ optimizer.optimize(circuit)
 # Step feedback round: incorporates newly verified records and fine-tunes GNN
 round_res = manager.step_feedback_round(new_records=new_verified_records, new_circuits=new_circuit_dict)
 print(f"Feedback Round {round_res.round_idx}: Val MAE improved from {round_res.val_mae_before:.4f} to {round_res.val_mae_after:.4f}")
+```
+
+### 10. Fair Comparative Benchmark Across All Optimizers
+```python
+from qco.experiments import BenchmarkHarness
+from qco.models import CircuitGNN
+from qco.models.baselines import AggregateFeatureMLP
+
+# Setup harness with test circuits and trained models
+gnn_model = CircuitGNN(hidden_dim=64, gnn_type="gcn")
+mlp_model = AggregateFeatureMLP(hidden_dim=32)
+
+harness = BenchmarkHarness(
+    test_circuits=[circuit1, circuit2],
+    gnn_model=gnn_model,
+    mlp_model=mlp_model,
+    max_iterations=15,
+)
+
+# Run benchmark across Random, Greedy, GNN-Guided, and MLP-Guided optimizers
+records = harness.run()
+summary = harness.summarize()
+print(summary[["method", "mean_gate_reduction", "mean_candidate_evaluations", "mean_runtime_sec"]])
 ```
