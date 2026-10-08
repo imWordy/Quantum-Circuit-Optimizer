@@ -1,5 +1,7 @@
-"""Experiments subpackage exports."""
-
+from qco.experiments.ablation import (
+    AblationFramework,
+    AblationStudyResult,
+)
 from qco.experiments.benchmark import (
     BenchmarkHarness,
     BenchmarkRecord,
@@ -8,4 +10,6 @@ from qco.experiments.benchmark import (
 __all__ = [
     "BenchmarkRecord",
     "BenchmarkHarness",
+    "AblationFramework",
+    "AblationStudyResult",
 ]

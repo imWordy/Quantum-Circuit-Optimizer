@@ -76,7 +76,7 @@ pytest -v tests/
 | **Phase 16** | **GNN-Guided Iterative Optimizer** | ✅ Complete | `GNNGuidedOptimizer`, end-to-end loop: generate → GNN rank → verify equivalence → strictly beneficial gate reduction acceptance, cycle prevention, `test_gnn_optimizer.py` |
 | **Phase 17** | **Feedback Learning** | ✅ Complete | `FeedbackRecord`, `FeedbackLoopManager`, online observation logging during optimization, incremental model retraining rounds without divergence, `test_feedback.py` |
 | **Phase 18** | **Final Experimental Framework** | ✅ Complete | `BenchmarkRecord`, `BenchmarkHarness`, fair multi-method comparison (Random, Greedy, GNN, MLP), all 16 metrics logged, `test_benchmark.py` |
-| **Phase 19** | Ablation Studies | ⏳ Planned | Graph structure vs aggregate features ablation |
+| **Phase 19** | **Ablation Studies** | ✅ Complete | `AblationFramework`, `AblationStudyResult`, structural graph vs aggregate features (A/B/C/D), rule subset ablations, `test_ablation.py` |
 | **Phase 20** | Final Validation & Reproducibility | ⏳ Planned | End-to-end automated reproducibility check |
 | **Phase 21** | Final Demonstration | ⏳ Planned | End-to-end circuit optimization showcase |
 
@@ -246,8 +246,31 @@ harness = BenchmarkHarness(
     max_iterations=15,
 )
 
-# Run benchmark across Random, Greedy, GNN-Guided, and MLP-Guided optimizers
-records = harness.run()
-summary = harness.summarize()
-print(summary[["method", "mean_gate_reduction", "mean_candidate_evaluations", "mean_runtime_sec"]])
+records = harness.run_benchmark(test_circuits)
+summary = harness.compute_summary_table()
+print(summary[["method", "avg_gate_reduction", "avg_evaluations", "avg_runtime_sec"]])
 ```
+
+### 11. Component Ablation Studies (Graph Structure vs. Aggregate Features)
+```python
+from qco.experiments import AblationFramework
+from qco.models import CircuitGNN
+from qco.models.mlp_baseline import AggregateFeatureMLP
+
+# Setup ablation framework across test circuits
+ablation = AblationFramework(
+    test_circuits=held_out_circuits,
+    gnn_model=gnn_model,
+    mlp_model=mlp_model,
+    max_iterations=15,
+)
+
+# 1. Structural graph vs Aggregate features (A: Random, B: Greedy, C: MLP, D: GNN)
+structural_study = ablation.run_structural_vs_aggregate_ablation()
+print(structural_study.summary_df)
+
+# 2. Transformation rule subset ablations (e.g. cancellation vs rotation vs all)
+rule_study = ablation.run_rule_subset_ablation()
+ablation.save_ablation_results(structural_study, output_dir="results/ablation")
+```
+

@@ -33,10 +33,11 @@ class RandomOptimizer(BaseOptimizer):
         max_evaluations_per_iter: int = 10,
         tolerance: float = 1e-7,
         seed: Optional[int] = 42,
+        candidate_generator: Optional[CandidateGenerator] = None,
     ) -> None:
         super().__init__(max_iterations=max_iterations, tolerance=tolerance, seed=seed)
         self.max_evaluations_per_iter = max_evaluations_per_iter
-        self.candidate_generator = CandidateGenerator()
+        self.candidate_generator = candidate_generator or CandidateGenerator()
 
     @property
     def name(self) -> str:

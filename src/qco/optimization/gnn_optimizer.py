@@ -60,6 +60,7 @@ class GNNGuidedOptimizer(BaseOptimizer):
         seed: Optional[int] = 42,
         candidate_generator: Optional[CandidateGenerator] = None,
         feedback_collector: Optional[Any] = None,
+        name: Optional[str] = None,
     ) -> None:
         """Initialize GNN-guided optimizer.
 
@@ -71,16 +72,18 @@ class GNNGuidedOptimizer(BaseOptimizer):
             seed: Seed for reproducibility if needed.
             candidate_generator: Generator producing candidate transformations.
             feedback_collector: Optional collector instance (e.g. FeedbackLoopManager).
+            name: Optional custom name identifier.
         """
         super().__init__(max_iterations=max_iterations, tolerance=tolerance, seed=seed)
         self.model = model
         self.ranker = CandidateRanker(model=model, candidate_generator=candidate_generator)
         self.max_evaluations_per_iter = max_evaluations_per_iter
         self.feedback_collector = feedback_collector
+        self._name = name or "GNNGuidedOptimizer"
 
     @property
     def name(self) -> str:
-        return "GNNGuidedOptimizer"
+        return self._name
 
     def optimize(self, circuit: CircuitData) -> OptimizationResult:
         """Run GNN-guided iterative optimization on a quantum circuit.

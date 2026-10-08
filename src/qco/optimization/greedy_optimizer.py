@@ -35,9 +35,10 @@ class GreedyOptimizer(BaseOptimizer):
         max_iterations: int = 50,
         tolerance: float = 1e-7,
         seed: Optional[int] = 42,
+        candidate_generator: Optional[CandidateGenerator] = None,
     ) -> None:
         super().__init__(max_iterations=max_iterations, tolerance=tolerance, seed=seed)
-        self.candidate_generator = CandidateGenerator()
+        self.candidate_generator = candidate_generator or CandidateGenerator()
 
     @property
     def name(self) -> str:
