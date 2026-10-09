@@ -77,7 +77,7 @@ pytest -v tests/
 | **Phase 17** | **Feedback Learning** | ✅ Complete | `FeedbackRecord`, `FeedbackLoopManager`, online observation logging during optimization, incremental model retraining rounds without divergence, `test_feedback.py` |
 | **Phase 18** | **Final Experimental Framework** | ✅ Complete | `BenchmarkRecord`, `BenchmarkHarness`, fair multi-method comparison (Random, Greedy, GNN, MLP), all 16 metrics logged, `test_benchmark.py` |
 | **Phase 19** | **Ablation Studies** | ✅ Complete | `AblationFramework`, `AblationStudyResult`, structural graph vs aggregate features (A/B/C/D), rule subset ablations, `test_ablation.py` |
-| **Phase 20** | Final Validation & Reproducibility | ⏳ Planned | End-to-end automated reproducibility check |
+| **Phase 20** | **Final Validation & Reproducibility** | ✅ Complete | `ReproducibilityRunner`, `ReproducibilityReport`, automated end-to-end run, exact circuit reconstruction, metric re-computation, `test_reproducibility.py` |
 | **Phase 21** | Final Demonstration | ⏳ Planned | End-to-end circuit optimization showcase |
 
 ---
@@ -273,4 +273,26 @@ print(structural_study.summary_df)
 rule_study = ablation.run_rule_subset_ablation()
 ablation.save_ablation_results(structural_study, output_dir="results/ablation")
 ```
+
+### 12. Automated End-to-End Reproducibility Pipeline
+```python
+from qco.experiments import ReproducibilityRunner
+
+# Initialize runner with path to output results directory
+runner = ReproducibilityRunner(output_dir="results/reproducibility", seed=42)
+
+# Executes complete automated pipeline:
+# 1. Environment metadata capture (software versions, OS, git commit)
+# 2. Procedural circuit generation & verified ground-truth dataset creation
+# 3. Disjoint dataset splitting with zero data leakage
+# 4. GNN model training and validation loss tracking
+# 5. Held-out circuit optimization with GNN and Greedy optimizers
+# 6. Strict post-optimization correctness checks:
+#    - Circuit reconstruction (original & optimized)
+#    - Independent exact unitary equivalence check (tolerance <= 1e-7)
+#    - Metric recalculation and consistency check
+report = runner.run_full_pipeline(num_circuits=10, training_epochs=5, max_optimization_iters=15)
+print(f"Reproducibility verification passed: {report.overall_success}")
+```
+
 
