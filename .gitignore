@@ -58,3 +58,7 @@ data/splits/*
 !data/splits/.gitkeep
 experiments/*
 !experiments/.gitkeep
+
+# Local reference file (do not push to GitHub)
+Changes_and_Updates.md
+Frontend_Phase_plan.md
