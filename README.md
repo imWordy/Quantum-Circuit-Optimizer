@@ -78,7 +78,7 @@ pytest -v tests/
 | **Phase 18** | **Final Experimental Framework** | ✅ Complete | `BenchmarkRecord`, `BenchmarkHarness`, fair multi-method comparison (Random, Greedy, GNN, MLP), all 16 metrics logged, `test_benchmark.py` |
 | **Phase 19** | **Ablation Studies** | ✅ Complete | `AblationFramework`, `AblationStudyResult`, structural graph vs aggregate features (A/B/C/D), rule subset ablations, `test_ablation.py` |
 | **Phase 20** | **Final Validation & Reproducibility** | ✅ Complete | `ReproducibilityRunner`, `ReproducibilityReport`, automated end-to-end run, exact circuit reconstruction, metric re-computation, `test_reproducibility.py` |
-| **Phase 21** | Final Demonstration | ⏳ Planned | End-to-end circuit optimization showcase |
+| **Phase 21** | **Final Demonstration** | ✅ Complete | `FinalDemonstrator`, `DemonstrationReport`, full 5-stage pipeline trace on unseen circuits, formatted comparison report, `test_demonstration.py` |
 
 ---
 
@@ -294,5 +294,35 @@ runner = ReproducibilityRunner(output_dir="results/reproducibility", seed=42)
 report = runner.run_full_pipeline(num_circuits=10, training_epochs=5, max_optimization_iters=15)
 print(f"Reproducibility verification passed: {report.overall_success}")
 ```
+
+### 13. End-to-End Final Demonstration on Unseen Circuits
+```python
+from qco.circuits import CircuitData, GateOperation
+from qco.experiments import FinalDemonstrator
+from qco.models import CircuitGNN
+
+# Define or sample an unseen circuit
+unseen_circuit = CircuitData(
+    num_qubits=2,
+    gates=[
+        GateOperation("CX", (0, 1)),
+        GateOperation("CX", (0, 1)),
+        GateOperation("RZ", (0,), params=[0.5]),
+        GateOperation("RZ", (0,), params=[-0.5]),
+        GateOperation("H", (1,)),
+        GateOperation("H", (1,)),
+        GateOperation("X", (0,)),
+    ],
+)
+
+# Run complete 5-stage decision pipeline (Generation -> Ranking -> Verification -> Cost -> Acceptance)
+demonstrator = FinalDemonstrator(model=gnn_model, max_iterations=20)
+report = demonstrator.run_demonstration(unseen_circuit, verbose=True)
+
+# Prints formatted comparative performance report
+print(report.format_summary_table())
+demonstrator.save_demonstration(report, output_dir="results/demonstration")
+```
+
 
 

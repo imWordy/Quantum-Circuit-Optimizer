@@ -6,6 +6,11 @@ from qco.experiments.benchmark import (
     BenchmarkHarness,
     BenchmarkRecord,
 )
+from qco.experiments.demonstration import (
+    DemonstrationReport,
+    FinalDemonstrator,
+    IterationDecisionTrace,
+)
 from qco.experiments.reproducibility import (
     CircuitCorrectnessCheck,
     ReproducibilityReport,
@@ -24,4 +29,7 @@ __all__ = [
     "ReproducibilityRunner",
     "record_environment_metadata",
     "verify_optimized_circuit",
+    "FinalDemonstrator",
+    "DemonstrationReport",
+    "IterationDecisionTrace",
 ]
