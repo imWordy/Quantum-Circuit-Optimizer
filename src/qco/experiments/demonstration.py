@@ -75,9 +75,13 @@ class IterationDecisionTrace:
     depth_after: int
     accepted: bool
     reason: str
+    circuit_after: Optional[CircuitData] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        if self.circuit_after is not None:
+            d["circuit_after"] = self.circuit_after.to_dict()
+        return d
 
 
 @dataclass
@@ -256,6 +260,7 @@ class FinalDemonstrator:
                         depth_after=new_cost.depth,
                         accepted=True,
                         reason=f"Beneficial verified reduction: {current_cost.total_gates} -> {new_cost.total_gates} gates",
+                        circuit_after=cand.circuit,
                     )
                     decision_traces.append(trace)
 

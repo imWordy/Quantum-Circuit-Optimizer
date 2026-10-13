@@ -125,11 +125,8 @@ elif selected_view == "2. GNN Ranking Inspector":
     render_gnn_inspector_view()
 
 elif selected_view == "3. Interactive Optimizer Lab":
-    st.subheader("3. 🚀 Interactive Optimizer Lab")
-    st.info(
-        "In Phase 4, students will run GNN-guided optimization with an interactive slider "
-        "to replay the exact decision trace step-by-step."
-    )
+    from qco.frontend.views.optimizer_lab import render_optimizer_lab_view
+    render_optimizer_lab_view()
 
 elif selected_view == "4. Multi-Method Benchmark":
     st.subheader("4. 📊 Multi-Method Benchmark Arena")
