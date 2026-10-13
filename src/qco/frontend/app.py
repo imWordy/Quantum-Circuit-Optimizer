@@ -121,11 +121,8 @@ if selected_view == "1. Circuit Studio":
     render_circuit_studio_view()
 
 elif selected_view == "2. GNN Ranking Inspector":
-    st.subheader("2. 🧠 GNN Ranking Inspector")
-    st.info(
-        "In Phase 3, this inspector will visualize circuit graph nodes and edges, "
-        "and display the live GNN candidate ranking table."
-    )
+    from qco.frontend.views.gnn_inspector import render_gnn_inspector_view
+    render_gnn_inspector_view()
 
 elif selected_view == "3. Interactive Optimizer Lab":
     st.subheader("3. 🚀 Interactive Optimizer Lab")
