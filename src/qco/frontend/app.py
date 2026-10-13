@@ -129,10 +129,8 @@ elif selected_view == "3. Interactive Optimizer Lab":
     render_optimizer_lab_view()
 
 elif selected_view == "4. Multi-Method Benchmark":
-    st.subheader("4. 📊 Multi-Method Benchmark Arena")
-    st.info(
-        "In Phase 5, students will compare Random, Greedy, MLP, and GNN side-by-side with interactive Plotly charts."
-    )
+    from qco.frontend.views.benchmark_arena import render_benchmark_arena_view
+    render_benchmark_arena_view()
 
 elif selected_view == "5. Exact Verification Hub":
     st.subheader("5. 🛡️ Exact Verification Authority Hub")

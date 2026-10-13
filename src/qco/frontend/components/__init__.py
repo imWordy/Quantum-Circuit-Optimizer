@@ -1,3 +1,8 @@
+from qco.frontend.components.benchmark_plots import (
+    render_efficiency_scatter_plot,
+    render_reduction_comparison_bar,
+    render_runtime_bar_plot,
+)
 from qco.frontend.components.circuit_viewer import (
     render_circuit_component,
     render_circuit_text,
@@ -16,4 +21,7 @@ __all__ = [
     "render_graph_inspector_component",
     "render_graph_network_plotly",
     "render_trace_timeline_playback",
+    "render_reduction_comparison_bar",
+    "render_efficiency_scatter_plot",
+    "render_runtime_bar_plot",
 ]
