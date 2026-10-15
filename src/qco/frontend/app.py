@@ -133,7 +133,6 @@ elif selected_view == "4. Multi-Method Benchmark":
     render_benchmark_arena_view()
 
 elif selected_view == "5. Exact Verification Hub":
-    st.subheader("5. 🛡️ Exact Verification Authority Hub")
-    st.info(
-        "In Phase 6, students will view full unitary matrix heatmaps and verify global phase equivalence proofs."
-    )
+    from qco.frontend.views.verification_hub import render_verification_hub_view
+    render_verification_hub_view()
+
