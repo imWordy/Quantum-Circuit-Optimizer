@@ -324,5 +324,27 @@ print(report.format_summary_table())
 demonstrator.save_demonstration(report, output_dir="results/demonstration")
 ```
 
+---
 
+## Interactive Student Web Platform & Azure Deployment
 
+QCO includes a comprehensive, responsive web application built with Streamlit and Plotly for deep learning and quantum computing education.
+
+### Running Locally
+```bash
+streamlit run src/qco/frontend/app.py
+```
+Visit `http://localhost:8501` to access all 5 interactive modules:
+1. **Circuit Studio**: Quantum presets (Bell, GHZ, Teleportation, QFT, Redundant cancellations), live wire diagrams, and DAG metrics.
+2. **GNN Ranking Inspector**: Interactive Plotly DAG visualization and real-time candidate rule benefit ranking.
+3. **Interactive Optimizer Lab**: Step-by-step scrubber playback showing exact rewrites, unitary checks, and metric deltas.
+4. **Multi-Method Benchmark Arena**: 4-way comparative analysis (Random vs Greedy vs MLP vs GNN) and rule ablation studies.
+5. **Exact Verification Hub**: Side-by-side unitary heatmaps, mathematical proof breakdown, and interactive perturbation tests.
+
+### Running with Docker Compose
+```bash
+docker compose up --build
+```
+
+### Deploying to Microsoft Azure
+See [`deploy/azure_deployment_guide.md`](deploy/azure_deployment_guide.md) for full deployment instructions to Azure App Service and Azure Container Apps.
