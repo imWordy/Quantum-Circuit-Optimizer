@@ -23,8 +23,11 @@ from qco.frontend.components.trace_timeline import render_trace_timeline_playbac
 from qco.metrics.circuit_cost import compute_circuit_cost
 from qco.models.gnn import CircuitGNN
 from qco.optimization.base import OptimizationResult
-from qco.optimization.baselines import GreedyOptimizer, RandomOptimizer
-from qco.optimization.gnn_optimizer import GNNGuidedOptimizer
+from qco.optimization import (
+    GNNGuidedOptimizer,
+    GreedyOptimizer,
+    RandomOptimizer,
+)
 
 
 def render_optimizer_lab_view() -> None:

@@ -69,7 +69,11 @@ def render_verification_hub_view() -> None:
         and "demonstration_report" in st.session_state
         and st.session_state.demonstration_report is not None
     ):
-        circuit_b = st.session_state.demonstration_report.optimized_circuit
+        report = st.session_state.demonstration_report
+        # Support both .final_circuit and .optimized_circuit
+        circuit_b = getattr(report, "final_circuit", getattr(report, "optimized_circuit", None))
+        if circuit_b is None:
+            circuit_b = copy.deepcopy(active_circuit)
         candidate_label = "Optimized Circuit"
     else:
         circuit_b = copy.deepcopy(active_circuit)

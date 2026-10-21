@@ -31,7 +31,11 @@ from qco.frontend.components.benchmark_plots import (
 from qco.frontend.presets import PRESET_CIRCUITS
 from qco.models.gnn import CircuitGNN
 from qco.models.mlp_baseline import AggregateFeatureMLP
-from qco.optimization.baselines import GreedyOptimizer, RandomOptimizer
+from qco.optimization import (
+    GreedyOptimizer,
+    MLPOptimizer,
+    RandomOptimizer,
+)
 from qco.optimization.gnn_optimizer import GNNGuidedOptimizer
 from qco.optimization.mlp_optimizer import MLPOptimizer
 from qco.transformations.candidate_generator import CandidateGenerator
