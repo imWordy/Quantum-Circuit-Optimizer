@@ -59,9 +59,10 @@ def render_circuit_component(
                 {
                     "Index": i,
                     "Gate": g.name,
-                    "Qubits": str(g.qubits),
-                    "Parameters": [round(p, 4) for p in g.params] if g.params else "None",
+                    "Qubits": ", ".join(map(str, g.qubits)),
+                    "Parameters": str([round(p, 4) for p in g.params]) if g.params else "-",
                 }
                 for i, g in enumerate(circuit.gates)
             ]
             st.dataframe(gate_data, use_container_width=True)
+
